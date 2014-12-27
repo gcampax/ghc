@@ -450,6 +450,7 @@ PACKAGES_STAGE1 += Cabal/Cabal
 PACKAGES_STAGE1 += bin-package-db
 PACKAGES_STAGE1 += hoopl
 PACKAGES_STAGE1 += transformers
+PACKAGES_STAGE1 += compact
 
 ifeq "$(HADDOCK_DOCS)" "YES"
 PACKAGES_STAGE1 += xhtml

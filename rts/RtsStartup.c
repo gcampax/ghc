@@ -39,6 +39,7 @@
 #include "Globals.h"
 #include "FileLock.h"
 #include "LinkerInternals.h"
+#include "sm/CNF.h"
 
 #if defined(PROFILING)
 # include "ProfHeap.h"
