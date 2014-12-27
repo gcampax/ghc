@@ -419,4 +419,42 @@ typedef struct MessageBlackHole_ {
     StgClosure *bh;
 } MessageBlackHole;
 
+// This is not a closure, it a bare
+// structure that lives at the beginning of
+// each consecutive block group in a
+// compact structure
+//
+// See Note [Compact Normal Forms] for details
+typedef struct StgCompactNFDataBlock_ {
+    struct StgCompactNFDataBlock_ *self; // the address of this block
+                                         // (used for adjusting pointers on
+                                         // the receiver side)
+    struct StgCompactNFData_ *owner; // the closure who owns this
+                                     // block (used in objectGetCompact)
+    struct StgCompactNFDataBlock_ *next; // chain of blocks used for
+                                         // serialization and freeing
+} StgCompactNFDataBlock;
+
+typedef struct StgCompactNFData_ {
+    StgHeader              header; // for sanity and other checks in practice,
+                                   // nothing should ever need the compact info
+                                   // pointer (we don't even need fwding
+                                   // pointers because it's a large object)
+    StgWord                totalW; // for proper accounting in evac, includes
+                                   // slop, and removes the first block in
+                                   // larger than megablock allocation
+                                   // essentially meaningless, but if we got it
+                                   // wrong sanity would complain loudly
+    StgWord                totalDataW; // for stats/profiling only, it's the
+                                       // full amount of memory used by this
+                                       // compact, including the portions not
+                                       // yet used
+    StgWord                autoBlockW; // size of automatically appended blocks
+    StgCompactNFDataBlock *nursery; // where to (try to) allocate from when
+                                    // appending
+    StgCompactNFDataBlock *last; // the last block of the chain (to know where
+                                 // to append new blocks for resize)
+} StgCompactNFData;
+
+
 #endif /* RTS_STORAGE_CLOSURES_H */
