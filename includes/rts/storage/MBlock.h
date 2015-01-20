@@ -22,12 +22,18 @@ extern void freeMBlocks(void *addr, nat n);
 extern void releaseFreeMemory(void);
 extern void freeAllMBlocks(void);
 
-extern void *getFirstMBlock(void **state);
-extern void *getNextMBlock(void **state, void *mblock);
+extern void *getFirstMBlock(void);
+extern void *getNextMBlock(void *mblock);
 
 #ifdef THREADED_RTS
 // needed for HEAP_ALLOCED below
 extern SpinLock gc_alloc_block_sync;
+#endif
+
+#ifdef USE_STRIPED_ALLOCATOR
+extern void * getMBlocksAt(void *addr, nat n);
+extern void * getMBlockInChunk(nat chunk);
+extern void * getMBlocksInChunk(nat chunk, nat n);
 #endif
 
 #endif /* RTS_STORAGE_MBLOCK_H */

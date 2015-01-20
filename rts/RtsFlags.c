@@ -156,6 +156,7 @@ void initRtsFlagsDefaults(void)
 #endif
     RtsFlags.GcFlags.heapBase           = 0;   /* means don't care */
     RtsFlags.GcFlags.allocLimitGrace    = (100*1024) / BLOCK_SIZE;
+    RtsFlags.GcFlags.sharedChunk        = 0; /* private heap */
 
 #ifdef DEBUG
     RtsFlags.DebugFlags.scheduler       = rtsFalse;
@@ -405,6 +406,10 @@ usage_text[] = {
 #endif
 "  -xq       The allocation limit given to a thread after it receives",
 "            an AllocationLimitExceeded exception. (default: 100k)",
+#if defined(USE_STRIPED_ALLOCATOR)
+"  -xs       The chunk to use for allocating shareable objects such",
+"            as Compacts",
+#endif
 "",
 "RTS options may also be specified using the GHCRTS environment variable.",
 "",
@@ -1264,6 +1269,14 @@ error = rtsTrue;
                       = decodeSize(rts_argv[arg], 3, BLOCK_SIZE, HS_INT_MAX)
                           / BLOCK_SIZE;
                   break;
+
+                case 's':
+                    OPTION_SAFE;
+#ifdef USE_STRIPED_ALLOCATOR
+                    RtsFlags.GcFlags.sharedChunk = strtol(rts_argv[arg]+3,
+                                                          (char**) NULL, 10);
+#endif
+                    break;
 
                   default:
                     OPTION_SAFE;

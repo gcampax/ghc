@@ -136,7 +136,11 @@ compactAllocateBlockInternal(Capability            *cap,
     }
 
     ACQUIRE_SM_LOCK;
+#ifdef USE_STRIPED_ALLOCATOR
+    block = allocGroupInChunk(RtsFlags.GcFlags.sharedChunk, n_blocks);
+#else
     block = allocGroup(n_blocks);
+#endif
     switch (operation) {
     case ALLOCATE_NEW:
         ASSERT (first == NULL);

@@ -306,11 +306,10 @@ void osReleaseFreeMemory(void) {
 void osFreeAllMBlocks(void)
 {
     void *mblock;
-    void *state;
 
-    for (mblock = getFirstMBlock(&state);
+    for (mblock = getFirstMBlock();
          mblock != NULL;
-         mblock = getNextMBlock(&state, mblock)) {
+         mblock = getNextMBlock(mblock)) {
         munmap(mblock, MBLOCK_SIZE);
     }
 }
@@ -384,8 +383,24 @@ void setExecutable (void *p, W_ len, rtsBool exec)
 
 #ifdef USE_LARGE_ADDRESS_SPACE
 
-static void *
-osTryReserveHeapMemory (W_ len, void *hint)
+#ifdef USE_STRIPED_ALLOCATOR
+void *osTryReserveHeapMemory(void *hint)
+{
+    void *p;
+
+    (void)hint;
+
+    /* We want to allocate exactly at the given address - no ifs, not buts */
+    p = mmap((void*)MBLOCK_SPACE_BEGIN, MBLOCK_SPACE_SIZE, PROT_NONE,
+             MAP_NORESERVE | MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
+    if (p != (void*)MBLOCK_SPACE_BEGIN) { // covers NULL and MAP_FAILED (-1)
+        barf("Failed to reserve address space");
+    }
+
+    return p;
+}
+#else
+void *osTryReserveHeapMemory(void *hint)
 {
     void *base, *top;
     void *start, *end;
@@ -417,6 +432,7 @@ osTryReserveHeapMemory (W_ len, void *hint)
 
     return start;
 }
+#endif
 
 void *osReserveHeapMemory(W_ *len)
 {
@@ -506,8 +522,11 @@ void osReleaseHeapMemory(void)
 {
     int r;
 
-    r = munmap((void*)mblock_address_space.begin,
-               mblock_address_space.end - mblock_address_space.begin);
+#ifdef USE_STRIPED_ALLOCATOR
+    r = munmap((void*)MBLOCK_SPACE_BEGIN, MBLOCK_SPACE_SIZE);
+#else
+    r = munmap((void*)mblock_address_space_begin, MBLOCK_SPACE_SIZE);
+#endif
     if(r < 0)
         sysErrorBelch("unable to release address space");
 }

@@ -49,13 +49,45 @@
    the 4GB block in question.
    -------------------------------------------------------------------------- */
 
-#ifdef USE_LARGE_ADDRESS_SPACE
+# ifdef USE_STRIPED_ALLOCATOR
 
-struct mblock_address_range {
-    W_ begin, end;
-    W_ padding[6];  // ensure nothing else inhabits this cache line
-} ATTRIBUTE_ALIGNED(64);
-extern struct mblock_address_range mblock_address_space;
+# if !defined(USE_LARGE_ADDRESS_SPACE) || !defined(linux_HOST_OS)
+// The striped allocator relies on details of how the address space
+// is laid out. We can't use it on other OSes.
+#  error "The striped allocator is only supported on Linux x86_64"
+# endif
+
+// We have a little less than 127 TB total of address space (the most I could
+// get is 131071 GB, with static linking and ASLR disabled), over a theoretical
+// limit of 128 TB (47 bits). To be conservative,
+// we leave 1 TB of low space (code, static data, C heap), followed by 1 TB of
+// normal heap and 256 chunks of 128 GB each, for a total of 34 TB
+//
+// Note that it is imperative that initialization happens before the
+// second thread is spawned, otherwise the glibc might go and allocate
+// another malloc arena in the wrong place, which would spray our tight
+// adddress space and make mmap overwrite existing data
+// (Also note that mmap will not fail if we ask it allocate in the wrong
+// place! We'll just remap everything PROT_NONE, which is a guaranteed
+// segfault very soon)
+
+# define MBLOCK_SPACE_BEGIN       ((StgWord)1 << 40) /* 1 TB */
+# define MBLOCK_NORMAL_SPACE_SIZE ((StgWord)1 << 40) /* 1 TB */
+# define MBLOCK_CHUNK_SIZE        ((StgWord)128 << 30) /* 128 GB */
+# define MBLOCK_NUM_CHUNKS        256
+# define MBLOCK_SPACE_SIZE        (MBLOCK_CHUNK_SIZE * MBLOCK_NUM_CHUNKS + \
+                                   MBLOCK_NORMAL_SPACE_SIZE)
+
+# define HEAP_ALLOCED(p)          ((W_)(p) >= MBLOCK_SPACE_BEGIN && \
+                                   (W_)(p) < (MBLOCK_SPACE_BEGIN +  \
+                                              MBLOCK_SPACE_SIZE))
+# define HEAP_ALLOCED_GC(p)       HEAP_ALLOCED(p)
+
+#elif defined(USE_LARGE_ADDRESS_SPACE)
+
+extern W_ mblock_address_space_begin;
+
+# define MBLOCK_SPACE_SIZE      ((StgWord)1 << 40) /* 1 TB */
 
 # define HEAP_ALLOCED(p)        ((W_)(p) >= mblock_address_space.begin && \
                                  (W_)(p) < (mblock_address_space.end))
@@ -221,6 +253,25 @@ StgBool HEAP_ALLOCED_GC(void *p)
 #else
 # error HEAP_ALLOCED not defined
 #endif
+
+INLINE_HEADER nat
+mblock_address_get_chunk (void *p)
+{
+    nat chunk;
+
+#ifdef USE_STRIPED_ALLOCATOR
+    if ((W_)p < MBLOCK_SPACE_BEGIN + MBLOCK_NORMAL_SPACE_SIZE)
+        chunk = 0;
+    else
+        chunk = 1 + ((W_)p - MBLOCK_SPACE_BEGIN - MBLOCK_NORMAL_SPACE_SIZE)/
+            MBLOCK_CHUNK_SIZE;
+#else
+    chunk = 0;
+    (void)p;
+#endif
+
+    return chunk;
+}
 
 #include "EndPrivate.h"
 

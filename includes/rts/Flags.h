@@ -72,6 +72,8 @@ typedef struct _GC_FLAGS {
                                  * to handle the exception before we
                                  * raise it again.
                                  */
+
+    nat     sharedChunk;        /* The chunk to use for shareable objects */
 } GC_FLAGS;
 
 /* See Note [Synchronization of flags and base APIs] */

@@ -1050,6 +1050,10 @@ if test "$ac_cv_sizeof_void_p" -eq 8 ; then
 fi
 if test "$use_large_address_space" = "yes" ; then
    AC_DEFINE([USE_LARGE_ADDRESS_SPACE], [1], [Enable single heap address space support])
+
+   if test "$ghc_host_os" = "linux" ; then
+      AC_DEFINE([USE_STRIPED_ALLOCATOR], [1], [Divide the address space in stripes])
+   fi
 fi
 
 AC_CHECK_LIB(dw, dwfl_begin, [HaveLibdw=YES], [HaveLibdw=NO])

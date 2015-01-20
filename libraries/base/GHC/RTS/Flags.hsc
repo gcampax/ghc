@@ -119,6 +119,7 @@ data GCFlags = GCFlags
     , doIdleGC              :: Bool
     , heapBase              :: Word -- ^ address to ask the OS for memory
     , allocLimitGrace       :: Word
+    , sharedChunk           :: RtsNat
     } deriving (Show)
 
 -- | Parameters concerning context switching
@@ -378,6 +379,7 @@ getGCFlags = do
           <*> #{peek GC_FLAGS, doIdleGC} ptr
           <*> #{peek GC_FLAGS, heapBase} ptr
           <*> #{peek GC_FLAGS, allocLimitGrace} ptr
+          <*> #{peek GC_FLAGS, sharedChunk} ptr
 
 getConcFlags :: IO ConcFlags
 getConcFlags = do

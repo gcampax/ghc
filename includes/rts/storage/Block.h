@@ -290,6 +290,14 @@ bdescr *allocBlock(void);
 bdescr *allocGroup_lock(W_ n);
 bdescr *allocBlock_lock(void);
 
+// These interfaces are available even if the striped allocator is disabled,
+// but must not be called with chunk != 0
+bdescr *allocGroupInChunk(nat chunk, W_ n);
+bdescr *allocBlockInChunk(nat chunk);
+#ifdef USE_STRIPED_ALLOCATOR
+bdescr *allocGroupAt(void *addr, W_ n);
+#endif
+
 /* De-Allocation ----------------------------------------------------------- */
 
 void freeGroup(bdescr *p);
