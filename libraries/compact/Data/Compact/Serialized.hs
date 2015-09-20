@@ -33,7 +33,7 @@ module Data.Compact.Serialized(
 import GHC.Prim (Compact#,
                  compactGetFirstBlock#,
                  compactGetNextBlock#,
-                 compactAllocateBlock#,
+                 compactAllocateBlockAt#,
                  compactFixupPointers#,
                  touch#,
                  Addr#,
@@ -173,9 +173,9 @@ importCompact (SerializedCompact [] _) _ = return Nothing
 importCompact (SerializedCompact blocks root) filler = do
   -- I'm not sure why we need a bang pattern here, given that
   -- these are obviously strict lets, but ghc complains otherwise
-  let !((_, W# firstSize):otherBlocks) = blocks
+  let !((Ptr firstAddr, W# firstSize):otherBlocks) = blocks
   let !(Ptr rootAddr) = root
-  IO (\s0 -> case compactAllocateBlock# firstSize nullAddr# s0 of
+  IO (\s0 -> case compactAllocateBlockAt# firstAddr firstSize nullAddr# s0 of
          (# s1, firstBlock #) ->
            case fillBlock firstBlock firstSize s1 of
              s2 -> case go firstBlock otherBlocks s2 of
@@ -191,8 +191,8 @@ importCompact (SerializedCompact blocks root) filler = do
 
     go :: Addr# -> [(Ptr a, Word)] -> State# RealWorld -> State# RealWorld
     go _ [] s = s
-    go previous ((_, W# size):rest) s =
-      case compactAllocateBlock# size previous s of
+    go previous ((Ptr addr, W# size):rest) s =
+      case compactAllocateBlockAt# addr size previous s of
         (# s', block #) -> case fillBlock block size s' of
           s'' -> go block rest s''
 

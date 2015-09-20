@@ -94,10 +94,11 @@ typedef enum {
 } AllocateOp;
 
 static StgCompactNFDataBlock *
-compactAllocateBlockInternal(Capability            *cap,
-                             StgWord                aligned_size,
-                             StgCompactNFDataBlock *first,
-                             AllocateOp             operation)
+compactAllocateBlock(Capability            *cap,
+                     StgWord                aligned_size,
+                     void                  *addr,
+                     StgCompactNFDataBlock *first,
+                     AllocateOp             operation)
 {
     StgCompactNFDataBlock *self;
     bdescr *block, *head;
@@ -137,8 +138,20 @@ compactAllocateBlockInternal(Capability            *cap,
 
     ACQUIRE_SM_LOCK;
 #ifdef USE_STRIPED_ALLOCATOR
-    block = allocGroupInChunk(RtsFlags.GcFlags.sharedChunk, n_blocks);
+    if (addr != NULL) {
+        block = allocGroupAt(addr, n_blocks);
+        if (block == NULL) {
+            // argh, we could not allocate where we wanted
+            // allocate somewhere in the chunk where this compact comes from
+            // and we'll do a pointer adjustment pass later
+            block = allocGroupInChunk(mblock_address_get_chunk(addr), n_blocks);
+        }
+    } else {
+        block = allocGroupInChunk(RtsFlags.GcFlags.sharedChunk, n_blocks);
+    }
 #else
+    ASSERT (addr == NULL);
+    (void)addr;
     block = allocGroup(n_blocks);
 #endif
     switch (operation) {
@@ -263,8 +276,57 @@ countCompactBlocks(bdescr *outer)
     return count;
 }
 
+#ifdef USE_STRIPED_ALLOCATOR
+STATIC_INLINE rtsBool
+can_alloc_group_at (void    *addr,
+                    StgWord  size)
+{
+    nat chunk;
+
+    if (BLOCK_ROUND_DOWN (addr) != addr)
+        return rtsFalse;
+
+    if (size >= BLOCKS_PER_MBLOCK * BLOCK_SIZE) {
+        if (FIRST_BLOCK(MBLOCK_ROUND_DOWN(addr)) != (void*)addr)
+            return rtsFalse;
+    } else {
+        if (MBLOCK_ROUND_DOWN(addr) != MBLOCK_ROUND_DOWN((W_)addr + size - 1))
+            return rtsFalse;
+    }
+
+    chunk = mblock_address_get_chunk(addr);
+    if (chunk == 0 || chunk > MBLOCK_NUM_CHUNKS)
+        return rtsFalse;
+
+    return rtsTrue;
+}
+#else
+STATIC_INLINE rtsBool
+can_alloc_group_at (void    *addr,
+                    StgWord  size)
+{
+    (void)addr;
+    (void)size;
+    return rtsFalse;
+}
+#endif // USE_STRIPED_ALLOCATOR
+
+static inline StgCompactNFDataBlock *
+compactAllocateBlockAtInternal (Capability *cap,
+                                StgPtr      addr,
+                                StgWord     aligned_size,
+                                AllocateOp  operation)
+{
+    // Sanity check the address before making bogus calls to the
+    // block allocator
+    if (can_alloc_group_at(addr, aligned_size))
+        return compactAllocateBlock(cap, aligned_size, addr, NULL, operation);
+    else
+        return compactAllocateBlock(cap, aligned_size, NULL, NULL, operation);
+}
+
 StgCompactNFData *
-compactNew (Capability *cap, StgWord size)
+compactNew (Capability *cap, StgWord size, StgPtr addr_hint)
 {
     StgWord aligned_size;
     StgCompactNFDataBlock *block;
@@ -276,8 +338,12 @@ compactNew (Capability *cap, StgWord size)
     if (aligned_size >= BLOCK_SIZE * BLOCKS_PER_MBLOCK)
         aligned_size = BLOCK_SIZE * BLOCKS_PER_MBLOCK;
 
-    block = compactAllocateBlockInternal(cap, aligned_size, NULL,
-                                         ALLOCATE_NEW);
+    if (addr_hint != NULL)
+        block = compactAllocateBlockAtInternal(cap, addr_hint, aligned_size,
+                                               ALLOCATE_NEW);
+    else
+        block = compactAllocateBlock(cap, aligned_size, NULL, NULL,
+                                     ALLOCATE_NEW);
 
     self = firstBlockGetCompact(block);
     SET_INFO((StgClosure*)self, &stg_COMPACT_NFDATA_info);
@@ -305,9 +371,9 @@ compactAppendBlock (Capability       *cap,
     StgCompactNFDataBlock *block;
     bdescr *bd;
 
-    block = compactAllocateBlockInternal(cap, aligned_size,
-                                         compactGetFirstBlock(str),
-                                         ALLOCATE_APPEND);
+    block = compactAllocateBlock(cap, aligned_size, NULL,
+                                 compactGetFirstBlock(str),
+                                 ALLOCATE_APPEND);
     block->owner = str;
     block->next = NULL;
 
@@ -907,9 +973,10 @@ compactContains (StgCompactNFData *str, StgPtr what)
 }
 
 StgCompactNFDataBlock *
-compactAllocateBlock(Capability            *cap,
-                     StgWord                size,
-                     StgCompactNFDataBlock *previous)
+compactAllocateBlockAt(Capability            *cap,
+                       StgPtr                 addr,
+                       StgWord                size,
+                       StgCompactNFDataBlock *previous)
 {
     StgWord aligned_size;
     StgCompactNFDataBlock *block;
@@ -940,9 +1007,11 @@ compactAllocateBlock(Capability            *cap,
     // This is correct because the GC has never seen the blocks so
     // it had no chance of promoting them
 
-    block = compactAllocateBlockInternal(cap, aligned_size, NULL,
-                                         ALLOCATE_IMPORT);
-    previous->next = block;
+    block = compactAllocateBlockAtInternal (cap, addr, aligned_size,
+                                            ALLOCATE_IMPORT);
+
+    if ((P_)block != addr && previous != NULL)
+        previous->next = block;
 
     bd = Bdescr((P_)block);
     bd->free = (P_)((W_)bd->start + size);

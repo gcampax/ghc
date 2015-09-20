@@ -410,7 +410,7 @@ RTS_FUN_DECL(stg_compactContainszh);
 RTS_FUN_DECL(stg_compactContainsAnyzh);
 RTS_FUN_DECL(stg_compactGetFirstBlockzh);
 RTS_FUN_DECL(stg_compactGetNextBlockzh);
-RTS_FUN_DECL(stg_compactAllocateBlockzh);
+RTS_FUN_DECL(stg_compactAllocateBlockAtzh);
 RTS_FUN_DECL(stg_compactFixupPointerszh);
 
 RTS_FUN_DECL(stg_forkzh);

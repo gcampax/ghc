@@ -1904,13 +1904,13 @@ stg_deRefStablePtrzh ( P_ sp )
    See Note [Compact Normal Forms]
    -------------------------------------------------------------------------  */
 
-stg_compactNewzh ( W_ size )
+stg_compactNewzh ( W_ size, W_ addr_hint )
 {
     P_ str;
 
     again: MAYBE_GC(again);
 
-    ("ptr" str) = ccall compactNew(MyCapability() "ptr", size);
+    ("ptr" str) = ccall compactNew(MyCapability() "ptr", size, addr_hint "ptr");
     return (str);
 }
 
@@ -1999,15 +1999,15 @@ stg_compactGetNextBlockzh ( P_ str, W_ block )
     return (next_block, size);
 }
 
-stg_compactAllocateBlockzh ( W_ size, W_ previous )
+stg_compactAllocateBlockAtzh ( W_ block, W_ size, W_ previous )
 {
     W_ actual_block;
 
     again: MAYBE_GC(again);
 
-    ("ptr" actual_block) = ccall compactAllocateBlock(MyCapability(),
-                                                      size,
-                                                      previous "ptr");
+    ("ptr" actual_block) = ccall compactAllocateBlockAt(MyCapability(),
+                                                        block "ptr", size,
+                                                        previous "ptr");
 
     return (actual_block);
 }

@@ -2421,7 +2421,7 @@ section "Compact normal form"
 primtype Compact#
 
 primop  CompactNewOp "compactNew#" GenPrimOp
-   Word# -> State# RealWorld -> (# State# RealWorld, Compact# #)
+   Word# -> Addr# -> State# RealWorld -> (# State# RealWorld, Compact# #)
    { Create a new Compact with the given size (in bytes, not words).
      The size is rounded up to a multiple of the allocator block size,
      and capped to one mega block. }
@@ -2474,7 +2474,7 @@ primop  CompactGetNextBlockOp "compactGetNextBlock#" GenPrimOp
    out_of_line      = True
 
 primop  CompactAllocateBlockOp "compactAllocateBlock#" GenPrimOp
-   Word# -> Addr# -> State# RealWorld -> (# State# RealWorld, Addr# #)
+   Addr# -> Word# -> Addr# -> State# RealWorld -> (# State# RealWorld, Addr# #)
    { Attempt to allocate a compact block with the given size (in
      bytes) at the given address. The first argument is a hint to
      the allocator, allocation might be satisfied at a different
