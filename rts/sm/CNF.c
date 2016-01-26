@@ -652,7 +652,7 @@ simple_scavenge_block (Capability *cap, StgCompactNFData *str, StgCompactNFDataB
             break;
 
         default:
-            debugBelch("Invalid non-NFData closure in Compact\n");
+            barf("Invalid non-NFData closure in Compact\n");
         }
     }
 }
